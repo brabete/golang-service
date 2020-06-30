@@ -40,7 +40,7 @@ func run(log *log.Logger) error {
 			DebugHost       string        `conf:"default:0.0.0.0:4000"`
 			ReadTimeout     time.Duration `conf:"default:5s"`
 			WriteTimeout    time.Duration `conf:"default:5s"`
-			ShutdownTimeout time.Duration `conf:"default:5s,noprint"`
+			ShutdownTimeout time.Duration `conf:"default:5s"`
 		}
 	}
 	cfg.Version.SVN = build
