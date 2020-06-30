@@ -3,14 +3,13 @@ package web
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"syscall"
 	"time"
 
 	"github.com/dimfeld/httptreemux/v5"
-    "github.com/google/uuid"
+	"github.com/google/uuid"
 )
 
 // ctxKey represents the type of value for the context key.
@@ -30,14 +29,13 @@ type Values struct {
 // framework.
 type Handler func(ctx context.Context, w http.ResponseWriter, r *http.Request) error
 
-
 // App is the entry point into our application and what configures our context
 // object for each of our http handlers. Feel free to add any configuration
 // data/logic on this App struct
 type App struct {
 	*httptreemux.ContextMux
 	shutdown chan os.Signal
-	mw []Middleware
+	mw       []Middleware
 }
 
 // NewApp creates an App value that handle a set of routes for the application.
@@ -45,7 +43,7 @@ func NewApp(shutdown chan os.Signal, mw ...Middleware) *App {
 	app := App{
 		ContextMux: httptreemux.NewContextMux(),
 		shutdown:   shutdown,
-		mw: mw,
+		mw:         mw,
 	}
 	return &app
 }
@@ -71,8 +69,10 @@ func (a *App) Handle(method string, path string, handler Handler, mw ...Middlewa
 
 		ctx := context.WithValue(r.Context(), KeyValues, &v)
 
+		// Call the wrapped handler functions.
 		if err := handler(ctx, w, r); err != nil {
-			fmt.Println(err)
+			a.SignalShutdown()
+			return
 		}
 	}
 
