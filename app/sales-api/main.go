@@ -6,6 +6,7 @@ import (
 	"expvar"
 	"fmt"
 	"github.com/brabete/golang-service/business/auth"
+	"github.com/brabete/golang-service/foundation/database"
 	"github.com/dgrijalva/jwt-go"
 	"io/ioutil"
 	"log"
@@ -51,6 +52,13 @@ func run(log *log.Logger) error {
 			PrivateKeyFile string `conf:"default:/app/private.pem"`
 			Algorithm      string `conf:"default:RS256"`
 		}
+		DB struct {
+			User       string `conf:"default:postgres"`
+			Password   string `conf:"default:postgres,noprint"`
+			Host       string `conf:"default:db"`
+			Name       string `conf:"default:postgres"`
+			DisableTLS bool   `conf:"default:false"`
+		}
 	}
 	cfg.Version.SVN = build
 	cfg.Version.Desc = "copyright information here"
@@ -89,7 +97,6 @@ func run(log *log.Logger) error {
 	}
 	log.Printf("main: Config :\n%v\n", out)
 
-
 	// =========================================================================
 	// Initialize authentication support
 
@@ -117,6 +124,25 @@ func run(log *log.Logger) error {
 		return errors.Wrap(err, "constructing auth")
 	}
 
+	// =========================================================================
+	// Start Database
+
+	log.Println("main: Initializing database support")
+
+	db, err := database.Open(database.Config{
+		User:       cfg.DB.User,
+		Password:   cfg.DB.Password,
+		Host:       cfg.DB.Host,
+		Name:       cfg.DB.Name,
+		DisableTLS: cfg.DB.DisableTLS,
+	})
+	if err != nil {
+		return errors.Wrap(err, "connecting to db")
+	}
+	defer func() {
+		log.Printf("main: Database Stopping : %s", cfg.DB.Host)
+		db.Close()
+	}()
 
 	// =========================================================================
 	// Start Debug Service
@@ -147,7 +173,7 @@ func run(log *log.Logger) error {
 
 	api := http.Server{
 		Addr:         cfg.Web.APIHost,
-		Handler:      handlers.API(build, shutdown, log, a),
+		Handler:      handlers.API(build, shutdown, log, a, db),
 		ReadTimeout:  cfg.Web.ReadTimeout,
 		WriteTimeout: cfg.Web.WriteTimeout,
 	}
