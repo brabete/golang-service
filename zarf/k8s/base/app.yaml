@@ -16,6 +16,17 @@ spec:
       containers:
         - name: app
           image: class-sales-api-amd64:1.0
+          env:
+            - name: SALES_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: sales-api
+                  key: db_host
+            - name: SALES_DB_DISABLE_TLS
+              valueFrom:
+                configMapKeyRef:
+                  name: sales-api
+                  key: db_disable_tls
           ports:
             - name: app
               containerPort: 3000
