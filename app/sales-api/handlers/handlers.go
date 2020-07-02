@@ -17,7 +17,7 @@ import (
 func API(build string, shutdown chan os.Signal, log *log.Logger, a *auth.Auth, db *sqlx.DB) *web.App {
 
 	// Construct the web.App which holds all routes as well as common Middleware.
-	app := web.NewApp(shutdown, mid.Logger(log), mid.Error(log), mid.Metrics(),  mid.Panics(log))
+	app := web.NewApp(shutdown, mid.Logger(log), mid.Error(log), mid.Metrics(), mid.Panics(log))
 
 	// Register health check endpoint. This route is not authenticated.
 	c := check{
@@ -27,6 +27,14 @@ func API(build string, shutdown chan os.Signal, log *log.Logger, a *auth.Auth, d
 
 	// Register health check endpoint. This route is not authenticated.
 	app.Handle(http.MethodGet, "/health", c.health)
+
+	p := productHandlers{
+		db: db,
+	}
+
+	app.Handle(http.MethodGet, "/products", p.list, mid.Authenticate(a))
+	app.Handle(http.MethodGet, "/products/:id", p.retrieve, mid.Authenticate(a))
+	app.Handle(http.MethodPost, "/products", p.create, mid.Authenticate(a))
 
 	return app
 }

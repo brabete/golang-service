@@ -2,9 +2,19 @@
 package tests
 
 import (
+	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"github.com/brabete/golang-service/business/auth"
 	"github.com/brabete/golang-service/business/data/schema"
 	"github.com/brabete/golang-service/foundation/database"
+	"github.com/brabete/golang-service/foundation/web"
+	"github.com/dgrijalva/jwt-go"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/pkg/errors"
+	"log"
+	"os"
 	"testing"
 	"time"
 )
@@ -87,4 +97,90 @@ func StringPointer(s string) *string {
 // useful in some tests.
 func IntPointer(i int) *int {
 	return &i
+}
+
+// Test owns state for running and shutting down tests.
+type Test struct {
+	DB   *sqlx.DB
+	Log  *log.Logger
+	Auth *auth.Auth
+
+	t       *testing.T
+	cleanup func()
+}
+
+// NewIntegration creates a database, seeds it, constructs an authenticator.
+func NewIntegration(t *testing.T) *Test {
+	db, cleanup := NewUnit(t)
+
+	if err := schema.Seed(db); err != nil {
+		t.Fatal(err)
+	}
+
+	log := log.New(os.Stdout, "TEST : ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
+
+	// Create RSA keys to enable authentication in our service.
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Build an authenticator using this key lookup function to retrieve
+	// the corresponding public key.
+	KID := "4754d86b-7a6d-4df5-9c65-224741361492"
+	keyLookupFunc := func(kid string) (*rsa.PublicKey, error) {
+		if kid != KID {
+			return nil, errors.New("no public key found")
+		}
+		return privateKey.Public().(*rsa.PublicKey), nil
+	}
+	auth, err := auth.New(privateKey, KID, "RS256", keyLookupFunc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return &Test{
+		DB:      db,
+		Log:     log,
+		Auth:    auth,
+		t:       t,
+		cleanup: cleanup,
+	}
+}
+
+// Teardown releases any resources used for the test.
+func (test *Test) Teardown() {
+	test.cleanup()
+}
+
+// Token generates an authenticated token for a user.
+func (test *Test) Token() string {
+	now := time.Now()
+	claims := auth.Claims{
+		StandardClaims: jwt.StandardClaims{
+			Issuer:    "service project",
+			Subject:   uuid.New().String(),
+			Audience:  "students",
+			ExpiresAt: now.Add(time.Hour).Unix(),
+			IssuedAt:  now.Unix(),
+		},
+		Roles: []string{auth.RoleAdmin, auth.RoleUser},
+	}
+
+	token, err := test.Auth.GenerateToken(claims)
+	if err != nil {
+		test.t.Fatal(err)
+	}
+
+	return token
+}
+
+// Context returns an app level context for testing.
+func Context() context.Context {
+	values := web.Values{
+		TraceID: uuid.New().String(),
+		Now:     time.Now(),
+	}
+
+	return context.WithValue(context.Background(), web.KeyValues, &values)
 }
