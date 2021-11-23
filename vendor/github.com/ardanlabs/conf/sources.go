@@ -18,7 +18,11 @@ func newSourceEnv(namespace string) *env {
 	m := make(map[string]string)
 
 	// Create the uppercase version to meet the standard {NAMESPACE_} format.
+	// If the namespace is empty, remove the _ from the beginning of the string.
 	uspace := fmt.Sprintf("%s_", strings.ToUpper(namespace))
+	if namespace == "" {
+		uspace = uspace[1:]
+	}
 
 	// Loop and match each variable using the uppercase namespace.
 	for _, val := range os.Environ() {
@@ -43,7 +47,11 @@ func (e *env) Source(fld Field) (string, bool) {
 
 // envUsage constructs a usage string for the environment variable.
 func envUsage(namespace string, fld Field) string {
-	return "$" + strings.ToUpper(namespace) + "_" + strings.ToUpper(strings.Join(fld.EnvKey, `_`))
+	uspace := strings.ToUpper(namespace) + "_" + strings.ToUpper(strings.Join(fld.EnvKey, `_`))
+	if namespace == "" {
+		uspace = uspace[1:]
+	}
+	return "$" + uspace
 }
 
 // =============================================================================
@@ -143,8 +151,8 @@ func newSourceFlag(args []string) (*flag, error) {
 // stored at the specified key from the flag source.
 func (f *flag) Source(fld Field) (string, bool) {
 	if fld.Options.ShortFlagChar != 0 {
-		flagKey := []string{string(fld.Options.ShortFlagChar)}
-		k := strings.ToLower(strings.Join(flagKey, `-`))
+		flagKey := fld.Options.ShortFlagChar
+		k := strings.ToLower(string(flagKey))
 		if val, found := f.m[k]; found {
 			return val, found
 		}
